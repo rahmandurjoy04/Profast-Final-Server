@@ -16,13 +16,13 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-    origin: 'http://localhost:5173',  // Frontend URL
+    origin: 'https://simple-firebase-authenti-26eae.web.app',  // Frontend URL
     credentials: true
 }));
 app.use(express.json());
 
-
-const serviceAccount = require("./firebase-admin-key.json");
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY,'base64').toString('utf8')
+const serviceAccount = JSON.parse(decodedKey);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -44,7 +44,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         const db = client.db('profastDB')
         const parcelCollection = db.collection('parcels');
         const paymentsCollection = db.collection('payments');
@@ -246,6 +246,30 @@ async function run() {
                 res.status(500).send({ message: "Failed to load riders" });
             }
         });
+        // Getting stats for the admin
+         app.get('/parcels/delivery/status-count', async (req, res) => {
+            const pipeline = [
+                {
+                    $group: {
+                        _id: '$delivery_status',
+                        count: {
+                            $sum: 1
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        status: '$_id',
+                        count: 1,
+                        _id: 0
+                    }
+                }
+            ];
+
+            const result = await parcelCollection.aggregate(pipeline).toArray();
+            res.send(result);
+        })
+
 
 
         // GET: Get pending delivery tasks for a rider
@@ -643,8 +667,8 @@ async function run() {
 
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
